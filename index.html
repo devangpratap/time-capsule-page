@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Time Capsule</title>
+<style>
+  :root { --bg:#faf8f4; --fg:#1d1b18; --muted:#6b665e; --line:#d9d4ca; --accent:#7a4b1e; --ok:#2f6b3a; --bad:#a3281b; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#16140f; --fg:#ece7dd; --muted:#a39c90; --line:#3a352d; --accent:#e0a96d; --ok:#7fc98b; --bad:#f08a7e; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 Georgia, "Iowan Old Style", serif; }
+  main { max-width:640px; margin:0 auto; padding:40px 16px 64px; }
+  h1 { font-size:2rem; margin:0 0 4px; }
+  p.lede { color:var(--muted); margin:0 0 28px; }
+  label { display:block; font:600 .85rem/1.4 system-ui, sans-serif; margin:18px 0 6px; }
+  input, textarea { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:6px; background:transparent; color:inherit; font:inherit; }
+  textarea#body { min-height:320px; resize:vertical; }
+  textarea#sealed { min-height:160px; font:12px/1.4 ui-monospace, monospace; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:520px) { .row { grid-template-columns:1fr; } }
+  button, a.btn { display:inline-block; margin-top:20px; padding:10px 18px; border:0; border-radius:6px; background:var(--accent); color:var(--bg); font:600 .95rem system-ui, sans-serif; cursor:pointer; text-decoration:none; }
+  .hint { color:var(--muted); font:.85rem/1.5 system-ui, sans-serif; margin-top:6px; }
+  .err { color:var(--bad); font:.9rem system-ui, sans-serif; margin-top:12px; }
+  #step2 { display:none; border-top:1px solid var(--line); margin-top:36px; padding-top:8px; }
+  ol { padding-left:1.2em; font:.95rem/1.6 system-ui, sans-serif; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Time Capsule</h1>
+  <p class="lede">Write a letter to your future self. It is encrypted on this device before it goes anywhere, and emailed to you on the date you pick. Until then it is stored only in encrypted form.</p>
+
+  <form id="f">
+    <div class="row">
+      <div><label for="name">Your name</label><input id="name" required autocomplete="name"></div>
+      <div><label for="email">Email to deliver to</label><input id="email" type="email" required autocomplete="email"></div>
+    </div>
+    <label for="deliverOn">Deliver on</label>
+    <input id="deliverOn" type="date" required>
+    <p class="hint">Use an email address you'll still have in five years.</p>
+    <label for="body">Your letter</label>
+    <textarea id="body" required placeholder="Dear future me,"></textarea>
+    <button type="submit">Seal the letter</button>
+    <p class="err" id="err"></p>
+  </form>
+
+  <section id="step2">
+    <h2>Now hand it in</h2>
+    <ol>
+      <li>Copy the sealed letter below.</li>
+      <li>Open the hand-in page (you need to be signed in to GitHub), paste it, and press <b>Create</b>.</li>
+      <li>Within a minute you'll get a confirmation email. That means it's stored safely.</li>
+    </ol>
+    <textarea id="sealed" readonly></textarea>
+    <button type="button" id="copy">Copy sealed letter</button>
+    <a class="btn" id="handin" target="_blank" rel="noopener">Open the hand-in page</a>
+  </section>
+</main>
+<script type="module">
+  import { seal } from "./age.js"
+  const $ = (id) => document.getElementById(id)
+  const iso = (d) => d.toLocaleDateString("en-CA") // local YYYY-MM-DD
+  const today = new Date()
+  const in5 = new Date(today); in5.setFullYear(today.getFullYear() + 5)
+  $("deliverOn").value = iso(in5)
+  $("deliverOn").min = iso(new Date(today.getTime() + 864e5))
+
+  $("handin").href = "https://github.com/devangpratap/time-capsule/issues/new?template=letter.yml"
+
+  $("f").addEventListener("submit", async (e) => {
+    e.preventDefault()
+    $("err").textContent = ""
+    try {
+      const recipient = (await (await fetch("recipient.txt", { cache: "no-store" })).text()).trim()
+      const sealed = await seal({
+        name: $("name").value.trim(),
+        email: $("email").value.trim(),
+        writtenOn: iso(new Date()),
+        deliverOn: $("deliverOn").value,
+        body: $("body").value
+      }, recipient)
+      if (sealed.length > 60000) throw new Error("Letter is too long for one hand-in. Split it into two letters.")
+      $("sealed").value = sealed
+      $("step2").style.display = "block"
+      $("step2").scrollIntoView({ behavior: "smooth" })
+    } catch (err) {
+      $("err").textContent = err.message
+    }
+  })
+  $("copy").addEventListener("click", async () => {
+    await navigator.clipboard.writeText($("sealed").value)
+    $("copy").textContent = "Copied"
+  })
+</script>
+</body>
+</html>
