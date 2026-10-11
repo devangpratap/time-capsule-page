@@ -45,15 +45,13 @@
   </form>
 
   <section id="step2">
-    <h2>Now hand it in</h2>
+    <h2>Sealed. One more click.</h2>
     <ol>
-      <li>Copy the sealed letter below.</li>
-      <li>Open the hand-in page (you need to be signed in to GitHub), paste it, and press <b>Create</b>.</li>
-      <li>Within a minute you'll get a confirmation email. That means it's stored safely.</li>
+      <li>Press <b>Hand it in</b>. GitHub opens with your sealed letter filled in. If the box is empty, paste: it's already on your clipboard.</li>
+      <li>Press <b>Create</b>. Within a minute you'll get a confirmation email.</li>
     </ol>
-    <textarea id="sealed" readonly></textarea>
-    <button type="button" id="copy">Copy sealed letter</button>
-    <a class="btn" id="handin" target="_blank" rel="noopener">Open the hand-in page</a>
+    <a class="btn" id="handin" target="_blank" rel="noopener">Hand it in</a>
+    <details><summary class="hint">Show the sealed letter</summary><textarea id="sealed" readonly></textarea></details>
   </section>
 </main>
 <script type="module">
@@ -65,7 +63,10 @@
   $("deliverOn").value = iso(in5)
   $("deliverOn").min = iso(new Date(today.getTime() + 864e5))
 
-  $("handin").href = "https://github.com/devangpratap/time-capsule/issues/new?template=letter.yml"
+  const HANDIN = "https://github.com/devangpratap/time-capsule/issues/new?template=letter.yml"
+  // Remember who you are on this device, so next time it's just the letter.
+  const remembered = ["name", "email"]
+  try { for (const k of remembered) $(k).value = localStorage.getItem(k) || "" } catch {}
 
   $("f").addEventListener("submit", async (e) => {
     e.preventDefault()
@@ -81,15 +82,18 @@
       }, recipient)
       if (sealed.length > 60000) throw new Error("Letter is too long for one hand-in. Split it into two letters.")
       $("sealed").value = sealed
+      try { for (const k of remembered) localStorage.setItem(k, $(k).value.trim()) } catch {}
+      // GitHub rejects URLs much past 6000 chars; longer letters go via the clipboard.
+      const prefilled = `${HANDIN}&sealed=${encodeURIComponent(sealed)}`
+      $("handin").href = prefilled.length <= 6000 ? prefilled : HANDIN
       $("step2").style.display = "block"
       $("step2").scrollIntoView({ behavior: "smooth" })
     } catch (err) {
       $("err").textContent = err.message
     }
   })
-  $("copy").addEventListener("click", async () => {
-    await navigator.clipboard.writeText($("sealed").value)
-    $("copy").textContent = "Copied"
+  $("handin").addEventListener("click", () => {
+    navigator.clipboard.writeText($("sealed").value).catch(() => {})
   })
 </script>
 </body>
